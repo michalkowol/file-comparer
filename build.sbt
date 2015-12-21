@@ -14,12 +14,23 @@ Revolver.enableDebugging(port = 5005, suspend = false)
 
 test in assembly := {}
 
+val sprayVersion = "1.3.3"
+val akkaVersion = "2.4.0"
+val cascadeVersion = "0.5.1"
+
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.3"
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0"
 libraryDependencies += "com.paypal" %% "cascade-common" % "0.5.1"
+libraryDependencies += "com.paypal" %% "cascade-json" % cascadeVersion
+libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion
+libraryDependencies += "com.typesafe.akka" %% "akka-slf4j" % akkaVersion
+libraryDependencies += "io.spray" %% "spray-routing" % sprayVersion
+libraryDependencies += "io.spray" %% "spray-client" % sprayVersion
 
 libraryDependencies += "com.google.guava" % "guava" % "18.0"
 libraryDependencies += "com.google.code.findbugs" % "jsr305" % "3.0.1"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.5" % "test"
 libraryDependencies += "org.mockito" % "mockito-all" % "1.10.19" % "test"
+libraryDependencies += "io.spray" %% "spray-testkit" % sprayVersion % "test"
+libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test"

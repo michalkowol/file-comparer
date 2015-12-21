@@ -1,5 +1,7 @@
 package pl.yourcode.photocomparer
 
+import pl.yourcode.photocomparer.cleaner.CleanerCLI
+
 object SaveToFile {
   import java.io.{File, PrintWriter}
 
@@ -15,12 +17,20 @@ object SaveToFile {
 
 object Boot extends Logging {
   def main(args: Array[String]): Unit = {
-    val p1 = """C:\Users\michal\Desktop\Nowy folder (2)\b"""
-    val p2 = """C:\Users\michal\Desktop\Nowy folder (2)\a"""
-    val duplicates = FileDeduplicator(p1).duplicates(p2)
-    duplicates.foreach(println)
+    val mainPath = """C:\Users\michal\Desktop\Nowy folder (2)\b"""
+    val secondaryPath = """C:\Users\michal\Desktop\Nowy folder (2)\a"""
+    val moveToPath = """C:\Users\michal\Desktop\Nowy folder (2)\c"""
 
-    val duplicatesInDir = FileDeduplicator(p1).duplicates()
+    new CleanerCLI(FileDeduplicator("""C:\Users\michal\Desktop\file-comparer""").duplicates()).run()
+  }
+
+  def deduplicate(mainPath: String, secondaryPath: String, moveToPath: String): Unit = {
+    val duplicates = FileDeduplicator(mainPath).duplicates(secondaryPath)
+    FileMover.move("""C:\Users\michal\Desktop\Nowy folder (2)\c""", duplicates)
+  }
+
+  private def duplicatesInDir(path: String): Unit = {
+    val duplicatesInDir = FileDeduplicator(path).duplicates()
     SaveToFile.printToFile("duplicates.txt") { out =>
       duplicatesInDir.foreach { files =>
         val filesText = files.map(_.getCanonicalPath).mkString("\n")
@@ -28,6 +38,5 @@ object Boot extends Logging {
         out.println()
       }
     }
-    FileMover.move("""C:\Users\michal\Desktop\Nowy folder (2)\c""", duplicates)
   }
 }

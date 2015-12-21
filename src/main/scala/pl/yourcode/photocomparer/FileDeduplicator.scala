@@ -30,7 +30,7 @@ class FileDeduplicator(main: Directory, directoryHashers: DirectoryHashers) {
     duplicates(other)
   }
 
-  private def duplicates(other: Directory): Seq[File] = {
+  def duplicates(other: Directory): Seq[File] = {
     val mainHashesAndFiles = directoryHashers.hash(main)
     val otherHashesAndFiles = directoryHashers.hash(other)
 
