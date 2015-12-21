@@ -7,7 +7,7 @@ import pl.yourcode.photocomparer.FileDeduplicator
 import scala.concurrent.{ExecutionContext, Future}
 
 class FileDeduplicatorService(implicit ec: ExecutionContext) {
-  def findDuplicates(directory: String): Future[Seq[Seq[File]]] = Future {
-    FileDeduplicator(directory).duplicates()
+  def findDuplicates(directory: String, progressListener: ProgressListener): Future[Seq[Seq[File]]] = Future {
+    FileDeduplicator(directory, progressListener).duplicates()
   }
 }

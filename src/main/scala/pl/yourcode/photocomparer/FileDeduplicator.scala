@@ -3,16 +3,22 @@ package pl.yourcode.photocomparer
 import java.io.File
 
 import pl.yourcode.photocomparer.hashing.{MultiFileHasher, FileHashers, DirectoryHashers}
+import pl.yourcode.photocomparer.service.{NoOpProgressListener, ProgressListener}
 
 object FileDeduplicator {
   def apply(mainPath: String): FileDeduplicator = {
     val mainDir = new File(mainPath)
-    apply(mainDir)
+    apply(mainDir, NoOpProgressListener)
   }
 
-  def apply(main: Directory): FileDeduplicator = {
+  def apply(mainPath: String, progressListener: ProgressListener): FileDeduplicator = {
+    val mainDir = new File(mainPath)
+    apply(mainDir, progressListener)
+  }
+
+  def apply(main: Directory, progressListener: ProgressListener): FileDeduplicator = {
     val fileHasher = FileHashers.md5Hasher
-    val multiFileHasher = new MultiFileHasher(fileHasher)
+    val multiFileHasher = new MultiFileHasher(fileHasher, progressListener)
     val directoryHasher = new DirectoryHashers(multiFileHasher)
     new FileDeduplicator(main, directoryHasher)
   }

@@ -16,11 +16,29 @@ object DuplicatesWorker {
   case class FindDuplicates(uuid: String, directory: String)
   case class JobStatus(uuid: String)
   sealed trait Status
-  case class Pending(uuid: String, status: String = "In progress.") extends Status
+  case class Pending(progressPercent: Int, status: String = "In progress.") extends Status
   case class Completed(duplicates: Seq[Seq[File]]) extends Status
+  case class Error(ex: Throwable) extends Status
   case object GetAllJobsUuids
+  case class UpdateJob(uuid: String, status: Status)
   case class Jobs(uuids: Set[String])
   def props(fileDeduplicatorService: FileDeduplicatorService): Props = Props(new DuplicatesWorker(fileDeduplicatorService))
+}
+
+trait ProgressListener {
+  def update(progressPercent: Int): Unit
+}
+
+object NoOpProgressListener extends ProgressListener {
+  def update(progressPercent: Int): Unit = {
+    // do nothing...
+  }
+}
+
+class ActorProgressListener(uuid: String, duplicatesWorker: ActorRef) extends ProgressListener {
+  override def update(progressPercent: Int): Unit = {
+    duplicatesWorker ! DuplicatesWorker.UpdateJob(uuid, DuplicatesWorker.Pending(progressPercent, status = s"In progress: $progressPercent%."))
+  }
 }
 
 class DuplicatesWorker(fileDeduplicatorService: FileDeduplicatorService) extends ServiceActor {
@@ -28,18 +46,25 @@ class DuplicatesWorker(fileDeduplicatorService: FileDeduplicatorService) extends
   import DuplicatesWorker._
   import context.dispatcher
 
-  private var jobs = Map.empty[String, Future[Seq[Seq[File]]]]
+  private var jobs = Map.empty[String, Status]
 
   override def receive: Receive = {
     case FindDuplicates(uuid, directory) =>
-      val duplicates = fileDeduplicatorService.findDuplicates(directory)
-      jobs = jobs.updated(uuid, duplicates)
+      val progressListener = new ActorProgressListener(uuid, self)
+      val duplicates = fileDeduplicatorService.findDuplicates(directory, progressListener)
+      duplicates.onComplete {
+        case scala.util.Success(duplicates) => self ! UpdateJob(uuid, Completed(duplicates))
+        case scala.util.Failure(ex) => self ! UpdateJob(uuid, Error(ex))
+      }
+      jobs = jobs.updated(uuid, Pending(0))
     case JobStatus(uuid) =>
       jobs.get(uuid) match {
-        case Some(duplicates) if duplicates.isCompleted => duplicates.map(Completed) pipeTo sender()
-        case Some(duplicates) => sender() ! Pending(uuid)
+        case Some(Error(ex)) => sender() ! Failure(ex)
+        case Some(status) => sender() ! status
         case None => sender() ! Failure(new NoSuchJobException(s"No such job $uuid."))
       }
+    case UpdateJob(uuid, status) =>
+      jobs = jobs.updated(uuid, status)
     case GetAllJobsUuids =>
       sender() ! Jobs(jobs.keySet)
   }
