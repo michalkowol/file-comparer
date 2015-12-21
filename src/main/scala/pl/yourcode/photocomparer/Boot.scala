@@ -1,8 +1,10 @@
 package pl.yourcode.photocomparer
 
+import java.io.File
+
 import akka.actor.{Actor, ActorSystem, Props}
 import akka.io.IO
-import pl.yourcode.photocomparer.model.{DuplicatesJobsResponse, DuplicatesRequest, DuplicatesResponse, Link}
+import pl.yourcode.photocomparer.model._
 import pl.yourcode.photocomparer.service._
 import pl.yourcode.photocomparer.web.{CORSDirective, ExceptionsHandler}
 import spray.can.Http
@@ -41,11 +43,13 @@ class Api extends HttpServiceActor with CORSDirective with ExceptionsHandler {
   private val duplicatesWorkerService = new DuplicatesWorkerService(duplicatesWorker)
   private val duplicatesApi = new DuplicatesApi(uuidGenerator, duplicatesWorkerService)
 
+  private val filesOperationsApi = new FilesOperationsApi
+
   def receive: Receive = runRoute {
     handleExceptionsFilter {
       corsFilter {
         pathPrefix("api") {
-          duplicatesApi.route
+          duplicatesApi.route ~ filesOperationsApi.route
         }
       }
     }
@@ -58,7 +62,7 @@ class DuplicatesApi(uuidGenerator: UuidGenerator, duplicatesWorkerService: Dupli
 
   def route: Route = findDuplicates ~ getDuplicateJob ~ getDuplicateJobs
 
-  def findDuplicates: Route = post {
+  private def findDuplicates: Route = post {
     path("duplicates") {
       entity(as[DuplicatesRequest]) { duplicatesRequest =>
         complete {
@@ -70,7 +74,7 @@ class DuplicatesApi(uuidGenerator: UuidGenerator, duplicatesWorkerService: Dupli
     }
   }
 
-  def getDuplicateJob: Route = get {
+  private def getDuplicateJob: Route = get {
     path("duplicates" / Segment) { jobUuid =>
       complete {
         duplicatesWorkerService.checkJobStatus(jobUuid)
@@ -78,12 +82,31 @@ class DuplicatesApi(uuidGenerator: UuidGenerator, duplicatesWorkerService: Dupli
     }
   }
 
-  def getDuplicateJobs: Route = get {
+  private def getDuplicateJobs: Route = get {
     path("duplicates") {
       complete {
         duplicatesWorkerService.getAllJobsUuids.map(_.toSeq).map { jobsUuids =>
           val links = jobsUuids.map { jobUuid => Link("job", s"/api/duplicates/$jobUuid") }
           DuplicatesJobsResponse(jobsUuids, links)
+        }
+      }
+    }
+  }
+}
+
+class FilesOperationsApi extends HttpServiceBase {
+
+  import pl.yourcode.photocomparer.marshaller._
+
+  def route: Route = deleteFiles
+
+  private def deleteFiles: Route = post {
+    path("files" / "deletions") {
+      entity(as[Seq[String]]) { filesNames =>
+        val files = filesNames.map { fileName => new File(fileName) }.filter { file => file.exists() }
+        FileOperations.deleteAll(files)
+        complete {
+          Deletions(s"Deleted ${files.size} file(s).")
         }
       }
     }
