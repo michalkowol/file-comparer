@@ -1,6 +1,7 @@
 package pl.yourcode.photocomparer
 
 import java.io.File
+
 import com.google.common.io.Files
 
 object Directories {

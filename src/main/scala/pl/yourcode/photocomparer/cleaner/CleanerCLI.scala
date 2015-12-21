@@ -5,6 +5,7 @@ package pl.yourcode.photocomparer.cleaner
 import java.awt.Desktop
 import java.io.File
 import java.net.URI
+
 import com.paypal.cascade.common.option._
 
 object CleanerCLI {

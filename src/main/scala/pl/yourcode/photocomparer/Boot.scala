@@ -1,41 +1,90 @@
 package pl.yourcode.photocomparer
 
-import pl.yourcode.photocomparer.cleaner.CleanerCLI
+import akka.actor.{Actor, ActorSystem, Props}
+import akka.io.IO
+import pl.yourcode.photocomparer.model.{DuplicatesJobsResponse, DuplicatesRequest, DuplicatesResponse, Link}
+import pl.yourcode.photocomparer.service._
+import pl.yourcode.photocomparer.web.{CORSDirective, ExceptionsHandler}
+import spray.can.Http
+import spray.routing.{HttpServiceActor, HttpServiceBase, Route}
 
-object SaveToFile {
-  import java.io.{File, PrintWriter}
+import scala.concurrent.ExecutionContext
 
-  def printToFile(fileName: String)(block: PrintWriter => Unit): Unit = {
-    printToFile(new File(fileName))(block)
-  }
-
-  def printToFile(file: File)(block: PrintWriter => Unit): Unit = {
-    val writer = new PrintWriter(file, "utf-8")
-    try { block(writer) } finally { writer.close() }
+object Boot {
+  def main(args: Array[String]): Unit = {
+    val system = ActorSystem("api-system")
+    val api = system.actorOf(Props[Api])
+    val bindListener = system.actorOf(Props[BindListener])
+    val bind = Http.Bind(api, "0.0.0.0", port = 8080)
+    IO(Http)(system).tell(bind, bindListener)
   }
 }
 
-object Boot extends Logging {
-  def main(args: Array[String]): Unit = {
-    val mainPath = """C:\Users\michal\Desktop\Nowy folder (2)\b"""
-    val secondaryPath = """C:\Users\michal\Desktop\Nowy folder (2)\a"""
-    val moveToPath = """C:\Users\michal\Desktop\Nowy folder (2)\c"""
+class BindListener extends Actor with Logging {
+  override def receive: Receive = {
+    case bound: Http.Bound =>
+      log.info("Bound to {}", bound.localAddress)
+      context.stop(self)
+    case error =>
+      log.error(s"$error")
+      context.system.terminate()
+  }
+}
 
-    new CleanerCLI(FileDeduplicator("""C:\Users\michal\Desktop\file-comparer""").duplicates()).run()
+class Api extends HttpServiceActor with CORSDirective with ExceptionsHandler {
+
+  private implicit val executionContext = actorRefFactory.dispatcher
+
+  private val uuidGenerator = UuidGenerator
+  private val fileDeduplicatorService = new FileDeduplicatorService
+  private val duplicatesWorker = actorRefFactory.actorOf(DuplicatesWorker.props(fileDeduplicatorService))
+  private val duplicatesWorkerService = new DuplicatesWorkerService(duplicatesWorker)
+  private val duplicatesApi = new DuplicatesApi(uuidGenerator, duplicatesWorkerService)
+
+  def receive: Receive = runRoute {
+    handleExceptionsFilter {
+      corsFilter {
+        pathPrefix("api") {
+          duplicatesApi.route
+        }
+      }
+    }
+  }
+}
+
+class DuplicatesApi(uuidGenerator: UuidGenerator, duplicatesWorkerService: DuplicatesWorkerService)(implicit ec: ExecutionContext) extends HttpServiceBase {
+
+  import pl.yourcode.photocomparer.marshaller._
+
+  def route: Route = findDuplicates ~ getDuplicateJob ~ getDuplicateJobs
+
+  def findDuplicates: Route = post {
+    path("duplicates") {
+      entity(as[DuplicatesRequest]) { duplicatesRequest =>
+        complete {
+          val uuid = uuidGenerator.generateUuid
+          duplicatesWorkerService.fireJob(uuid, duplicatesRequest.directory)
+          DuplicatesResponse(Seq(Link("self", "/api/duplicates"), Link("job", s"/api/duplicates/$uuid")))
+        }
+      }
+    }
   }
 
-  def deduplicate(mainPath: String, secondaryPath: String, moveToPath: String): Unit = {
-    val duplicates = FileDeduplicator(mainPath).duplicates(secondaryPath)
-    FileMover.move("""C:\Users\michal\Desktop\Nowy folder (2)\c""", duplicates)
+  def getDuplicateJob: Route = get {
+    path("duplicates" / Segment) { jobUuid =>
+      complete {
+        duplicatesWorkerService.checkJobStatus(jobUuid)
+      }
+    }
   }
 
-  private def duplicatesInDir(path: String): Unit = {
-    val duplicatesInDir = FileDeduplicator(path).duplicates()
-    SaveToFile.printToFile("duplicates.txt") { out =>
-      duplicatesInDir.foreach { files =>
-        val filesText = files.map(_.getCanonicalPath).mkString("\n")
-        out.println(filesText)
-        out.println()
+  def getDuplicateJobs: Route = get {
+    path("duplicates") {
+      complete {
+        duplicatesWorkerService.getAllJobsUuids.map(_.toSeq).map { jobsUuids =>
+          val links = jobsUuids.map { jobUuid => Link("job", s"/api/duplicates/$jobUuid") }
+          DuplicatesJobsResponse(jobsUuids, links)
+        }
       }
     }
   }

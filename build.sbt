@@ -20,8 +20,9 @@ val cascadeVersion = "0.5.1"
 
 libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.3"
 libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.1.0"
-libraryDependencies += "com.paypal" %% "cascade-common" % "0.5.1"
+libraryDependencies += "com.paypal" %% "cascade-common" % cascadeVersion
 libraryDependencies += "com.paypal" %% "cascade-json" % cascadeVersion
+libraryDependencies += "com.paypal" %% "cascade-akka" % cascadeVersion
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion
 libraryDependencies += "com.typesafe.akka" %% "akka-slf4j" % akkaVersion
 libraryDependencies += "io.spray" %% "spray-routing" % sprayVersion

@@ -2,7 +2,7 @@ package pl.yourcode.photocomparer.hashing
 
 import java.io.File
 
-import pl.yourcode.photocomparer.{Directory, Directories}
+import pl.yourcode.photocomparer.{Directories, Directory}
 
 class DirectoryHashers(multiFileHasher: MultiFileHasher) {
   def hash(root: Directory): Map[Hash, Seq[File]] = {
